@@ -5,7 +5,7 @@ from typing import Optional
 from typing import Set
 
 
-@dataclass(frozen=True)
+@dataclass(unsafe_hash=True)
 class OrderLine:
     """Represents Order Line entity within an Order entity"""
     orderid: str
