@@ -58,6 +58,9 @@ class Batch:
     def __hash__(self) -> int:
         return hash(self.reference)
 
+    def __repr__(self) -> str:
+        return f"BATCH. reference: {self.reference}, sku: {self.sku}, eta: {self.eta}, qty: {self._purchased_quantity}, allocations: {self._allocations}."
+
 
 class OutOfStock(Exception):
     ...

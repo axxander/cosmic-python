@@ -7,12 +7,6 @@ from sqlalchemy import (
     String,
     Table,
 )
-from sqlalchemy.orm import (
-    relationship,
-    registry,
-)
-
-import model
 
 
 metadata = MetaData()
@@ -46,23 +40,3 @@ allocations = Table(
     Column("orderline_id", ForeignKey("order_lines.id")),
     Column("batch_id", ForeignKey("batches.id")),
 )
-
-
-def start_mappers():
-    """
-    Defines mapping of Python Domain Model -> Database model
-    """
-    mapper_registry = registry()
-    lines_mapper = mapper_registry.map_imperatively(model.OrderLine, order_lines)
-    # Batches related to Order Line via Allocations Intermediate
-    mapper_registry.map_imperatively(
-        model.Batch,
-        batches,
-        properties={
-            "_allocations": relationship(
-                lines_mapper,
-                secondary=allocations, # intermediate table
-                collection_class=set, # allocations are idempotent and cannot be repeated
-            )
-        }
-    )
