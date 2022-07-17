@@ -1,5 +1,4 @@
 import abc
-from operator import mod
 from typing import Set
 
 from sqlalchemy.orm import Session
