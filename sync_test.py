@@ -1,42 +1,20 @@
+from pathlib import Path
+
 import pytest
 
-from sync import sync
+from sync import determine_actions, sync
 
 
 def test_when_a_file_exists_in_src_but_not_dest(tmp_path):
-    """Test that a file is copied from src to dest when the file does not exist in dest"""
+    src_hashes = {"hash1": "fn1"}
+    dst_hashes = {}
+    actions = determine_actions(src_hashes, dst_hashes, Path("/src"), Path("/dst"))
 
-    # create tmp dirs
-    source = (tmp_path / "source")
-    source.mkdir()
-    dest = (tmp_path / "dest")
-    dest.mkdir()
-
-    # write to tml src dir
-    content = "I am a very useful file"
-    (source / "my-file").write_text(content)
-
-    sync(source, dest)
-
-    expected_path = dest / "my-file"
-    assert expected_path.exists()
-    assert expected_path.read_text() == content
+    assert list(actions) == [("copy", Path("/src/fn1"), Path("/dst/fn1"))]
 
 def test_when_a_file_has_been_renamed_in_the_source(tmp_path):
-    source = (tmp_path / "source")
-    source.mkdir()
-    dest = (tmp_path / "dest")
-    dest.mkdir()
+    src_hashes = {"hash1": "fn1"}
+    dst_hashes = {"hash1": "fn2"}
+    actions = determine_actions(src_hashes, dst_hashes, Path("/src"), Path("/dst"))
 
-    content = "I am a file that was renamed"
-    source_path = source / "source-filname"
-    source_path.write_content(content)
-
-    old_dest_path = dest / "dest-filename"
-    expected_dest_path = dest / "source-filename"
-    old_dest_path.write_content(content)
-
-    sync(source, dest)
-
-    assert old_dest_path.exists() is False
-    assert expected_dest_path.read_text() == content
+    assert list(actions) == [("move", Path("/dst/fn2"), Path("/dst/fn1"))]

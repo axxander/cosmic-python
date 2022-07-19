@@ -7,8 +7,17 @@ Rules:
 
 1 & 2 - simply compare two lists of paths
 3 - need to use hash to compare files
+
+New method
+- Create a dict of hashes for both the source and destinations
+- Separate out the what we do to how we do it: when comparing we should produce commands like ("ACTION", "source", "dest") where ACTION could be copy or delete etc
+
+This now lets us test the actual core, not the code that writes the files. We can write test cases for given these source and dest hash dicts, what are the commands?
+Core code had no dependencies on external state.
+Then we can use integration tests for the actual end-to-end flow, i.e. check things are actually written/deleted to a dir.
 """
 
+from fileinput import filename
 import hashlib
 import os
 import shutil
@@ -29,28 +38,48 @@ def hash_file(path: Path) -> str:
     return hasher.hexdigest()
 
 
+def read_paths_and_hashes(root: str) -> str:
+    hashes = {}
+    for folder, _, files in os.walk(root):
+        for fn in files:
+            hashes[hash_file(Path(folder) / fn)] = fn
+    
+    return hashes
+
+def determine_actions(src_hashes, dst_hashes, src_folder, dst_folder):
+    for sha, fn in src_hashes.items():
+        # file missing in destination: copy
+        if sha not in dst_hashes:  # file in src but not in dest
+            sourcepath = Path(src_folder) / fn
+            destpath = Path(dst_folder) / fn
+            yield "copy", sourcepath, destpath
+        
+        # file in destination, but named something different from source: rename
+        elif dst_hashes[sha] != fn:  # same file in src and dest but named differently in dest
+            oldestpath = Path(dst_folder) / dst_hashes[sha]  # current filename
+            newestpath = Path(dst_folder) / fn  # new filename
+            yield "move", oldestpath, newestpath
+
+    # file in destination but no in source: delete
+    for sha, filename in dst_hashes.items():
+        if sha not in src_hashes:  # file in dest does not exist in source and is NOT a same file with diff name
+            yield "delete", dst_folder / filename
+
 def sync(source, dest):
     """Function for replicating source directory in a destination directory."""
 
-    # walk the source dir and build a dict of filename: hash of file
-    source_hashes = {}
-    for folder, _, files in os.walk(source):
-        for fn in files:
-            source_hashes[hash_file(Path(folder) / fn)] = fn  # Path("hello") / "world" == Path("hello/world")
+    # imperative shell step 1, gather inputs
+    source_hashes = read_paths_and_hashes(source)
+    dest_hashes = read_paths_and_hashes(dest)
 
-    seen = set()
+    # step 2: call functional core: we can test this code independently of a file system!
+    actions = determine_actions(source_hashes, dest_hashes, source, dest)
 
-    for folder, _, files in os.walk(dest):
-        for fn in files:
-            dest_path = Path(folder) / fn
-            dest_hash = hash_file(dest_path)
-            seen.add(dest_hash)
-
-            if dest_hash not in source_hashes:  # file in dest but not source: delete
-                dest_path.remove()
-            elif dest_hash in source_hashes and fn != source_hashes[dest_hash]:  # same file different name: rename file
-                shutil.move(dest_path, Path(folder) / source_hashes[dest_hash])
-
-    for src_hash, fn in source_hashes.items():
-        if src_hash not in seen:  # file in source not found in dest: copy to dest
-            shutil.copy(Path(source) / fn, Path(dest) / fn)
+    # imperative shell step 3, apply outputs
+    for action, *paths in actions:
+        if action == "copy":
+            shutil.copyfile(*paths)
+        if action == "move":
+            shutil.move(*paths)
+        if action == "delete":
+            os.remove(paths[0])
