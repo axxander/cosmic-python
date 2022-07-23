@@ -17,7 +17,7 @@ Core code had no dependencies on external state.
 Then we can use integration tests for the actual end-to-end flow, i.e. check things are actually written/deleted to a dir.
 """
 
-from fileinput import filename
+from typing import Callable, Protocol
 import hashlib
 import os
 import shutil
@@ -38,7 +38,7 @@ def hash_file(path: Path) -> str:
     return hasher.hexdigest()
 
 
-def read_paths_and_hashes(root: str) -> str:
+def reader(root: str) -> str:
     hashes = {}
     for folder, _, files in os.walk(root):
         for fn in files:
@@ -46,40 +46,37 @@ def read_paths_and_hashes(root: str) -> str:
     
     return hashes
 
-def determine_actions(src_hashes, dst_hashes, src_folder, dst_folder):
-    for sha, fn in src_hashes.items():
-        # file missing in destination: copy
-        if sha not in dst_hashes:  # file in src but not in dest
-            sourcepath = Path(src_folder) / fn
-            destpath = Path(dst_folder) / fn
-            yield "copy", sourcepath, destpath
+
+class FileSystem(Protocol):
+    def copy(self, src, dest) -> None: ...
+    def move(self, src, dest) -> None: ...
+    def delete(self, src, dest) -> None: ...
+
+
+def sync(reader: Callable, filesystem: FileSystem, source_root: Path, dest_root: Path):
+    """Function for replicating source directory in a destination directory.
+    
+    Function now explicitly depends on reader and filesystem to make edge-to-edge testing easier (dependency injection/IoC)
+    reader: produces file dictionary
+    filesystem: for applying changes
+    """
+
+    # str func required: may need refactoring
+    source_hashes = reader(str(source_root))
+    dest_hashes = reader(str(dest_root))
+
+    # converting path to str: probably needs refactoring
+    for sha, fn in source_hashes.items():
+        if sha not in dest_hashes:  # file in source but not dest: copy
+            sourcepath = source_root / fn
+            destpath = dest_root / fn
+            filesystem.copy(sourcepath, destpath)  # copy
         
-        # file in destination, but named something different from source: rename
-        elif dst_hashes[sha] != fn:  # same file in src and dest but named differently in dest
-            oldestpath = Path(dst_folder) / dst_hashes[sha]  # current filename
-            newestpath = Path(dst_folder) / fn  # new filename
-            yield "move", oldestpath, newestpath
-
-    # file in destination but no in source: delete
-    for sha, filename in dst_hashes.items():
-        if sha not in src_hashes:  # file in dest does not exist in source and is NOT a same file with diff name
-            yield "delete", dst_folder / filename
-
-def sync(source, dest):
-    """Function for replicating source directory in a destination directory."""
-
-    # imperative shell step 1, gather inputs
-    source_hashes = read_paths_and_hashes(source)
-    dest_hashes = read_paths_and_hashes(dest)
-
-    # step 2: call functional core: we can test this code independently of a file system!
-    actions = determine_actions(source_hashes, dest_hashes, source, dest)
-
-    # imperative shell step 3, apply outputs
-    for action, *paths in actions:
-        if action == "copy":
-            shutil.copyfile(*paths)
-        if action == "move":
-            shutil.move(*paths)
-        if action == "delete":
-            os.remove(paths[0])
+        elif dest_hashes[sha] != fn:  # identical file is source and dest, but named diff in source: rename/move
+            oldpath = dest_root / dest_hashes[sha]
+            newpath = dest_root / fn
+            filesystem.move(oldpath, newpath) # rename
+    
+    for sha, fn in dest_hashes.items():
+        if sha not in source_hashes:  # file in dest but not source: delete
+            filesystem.delete(dest_root / fn)
