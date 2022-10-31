@@ -1,7 +1,7 @@
 import pytest
 
 import model
-import respository
+import repository
 
 
 def insert_order_line(session) -> str:
@@ -41,7 +41,7 @@ def insert_allocation(session, orderline_id, batch_id) -> None:
 def test_repository_can_save_a_batch(session):
     batch = model.Batch("batch1", "YELLOW-CHAIR", 100, eta=None)
 
-    repo = respository.SqlAlchemyRepository(session)
+    repo = repository.SqlAlchemyRepository(session)
     repo.add(batch)
     session.commit()
 
@@ -56,7 +56,7 @@ def test_respository_can_retrieve_a_batch_with_allocation(session):
     insert_batch(session, "batch2")
     insert_allocation(session, orderline_id, batch1_id)
 
-    repo = respository.SqlAlchemyRepository(session)
+    repo = repository.SqlAlchemyRepository(session)
     retrieved = repo.get("batch1")
 
     expected = model.Batch("batch1", "YELLOW-CHAIR", 100, None)
