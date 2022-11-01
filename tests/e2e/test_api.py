@@ -19,20 +19,27 @@ def random_orderid(name=""):
     return f"order-{name}-{random_suffix()}"
 
 
+def post_to_add_batch(ref, sku, qty, eta):
+    """Helper for adding batches to repo for test setup: prevents need for ugly raw SQL fixtures."""
+    url = config.get_api_url()
+    r = requests.post(
+        f"{url}/batches",
+        json={"ref": ref, "sku": sku, "qty": qty, "eta": eta},
+    )
+    assert r.status_code == 201
+
+
+@pytest.mark.usefixtures("postgres_db")
 @pytest.mark.usefixtures("restart_api")
-def test_happy_path_return_201_and_allocated_batch(add_stock, postgres_session):
+def test_happy_path_return_201_and_allocated_batch():
     sku, othersku = random_sku(), random_sku(name="other")
     earlybatch = random_batchref(name="1")
     laterbatch = random_batchref(name="2")
     otherbatch = random_batchref(name="3")
-    # helper fixture that hides detail of inserting into tables
-    add_stock(
-        [
-            (laterbatch, sku, 100, "2011-01-02"),
-            (earlybatch, sku, 100, "2011-01-01"),
-            (otherbatch, othersku, 100, None),
-        ]
-    )
+    # instead of the fixture, we can use the service itself
+    post_to_add_batch(earlybatch, sku, 100, "2011-01-01")
+    post_to_add_batch(laterbatch, sku, 100, "2011-01-02")
+    post_to_add_batch(otherbatch, othersku, 100, None)
 
     line = {"orderid": random_orderid(), "sku": sku, "qty": 3}
     url = config.get_api_url()
