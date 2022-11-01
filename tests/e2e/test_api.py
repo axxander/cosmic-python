@@ -4,7 +4,6 @@ import pytest
 import requests
 
 import config
-import model
 
 
 def random_suffix():

@@ -2,7 +2,7 @@ from datetime import date
 import pytest
 from typing import Tuple
 
-from model import (
+from domain.model import (
     Batch,
     OrderLine,
 )

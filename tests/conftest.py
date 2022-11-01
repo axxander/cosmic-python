@@ -12,7 +12,7 @@ import requests
 from requests import ConnectionError
 
 import config
-from orm import (
+from adapters.orm import (
     metadata,
     start_mappers,
 )

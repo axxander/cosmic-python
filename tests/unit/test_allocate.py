@@ -4,7 +4,7 @@ from datetime import (
 )
 import pytest
 
-from model import (
+from domain.model import (
     allocate,
     Batch,
     OrderLine,
