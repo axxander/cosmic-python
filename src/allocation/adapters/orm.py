@@ -12,7 +12,7 @@ from sqlalchemy.orm import (
     registry,
 )
 
-from domain import model
+from allocation.domain import model
 
 
 metadata = MetaData()

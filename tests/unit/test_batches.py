@@ -1,8 +1,9 @@
 from datetime import date
-import pytest
 from typing import Tuple
 
-from domain.model import (
+import pytest
+
+from allocation.domain.model import (
     Batch,
     OrderLine,
 )
