@@ -4,7 +4,6 @@ from datetime import date
 from typing import List
 
 from allocation.domain import model
-from allocation.adapters import repository
 from allocation.service_layer.unit_of_work import AbstractUnitOfWork
 
 
@@ -19,36 +18,20 @@ def is_valid_sku(sku: str, batches: List[model.Batch]):
 def allocate(orderid: str, sku: str, qty: int, uow: AbstractUnitOfWork) -> str:
     line = model.OrderLine(orderid, sku, qty)
     with uow:
-        batches = uow.batches.list()
-        if not is_valid_sku(line.sku, batches):
+        product = uow.products.get(sku=line.sku)
+        if product is None:
             raise InvalidSku(f"Invalid sku {line.sku}")
-        batchref = model.allocate(line, batches)
+        batchref = product.allocate(line)
         uow.commit()
     return batchref
 
 
-def reallocate(line: model.OrderLine, uow: AbstractUnitOfWork) -> str:
-    """Reallocate an existing order line."""
-    with uow:
-        batch = uow.batches.get(sku=line.sku)
-        if batch is None:
-            raise InvalidSku(f"Invalid sku {line.sku}")
-        batch.deallocate(line)
-        allocate(line)
-        uow.commit()
-
-
-# def change_batch_quantity(batchref:str, new_qty: int, uow: AbstractUnitOfWork):
-#     with uow:
-#         batch = uow.batches.get(reference=batchref)
-#         batch.change_purchased_quantity(new_qty)
-#         while batch.available_quantity < 0:
-#             batch.deallocate_one()
-#         uow.commit()
-
-
 def add_batch(ref: str, sku: str, qty: int, eta: date | None, uow: AbstractUnitOfWork):
     with uow:
+        product = uow.products.get(sku=sku)
+        if product is None:  # no batches for the given SKU
+            product = model.Product(sku, batches=[])
+            uow.products.add(product)
         batch = model.Batch(ref, sku, qty, eta)
-        uow.batches.add(batch)
+        product.batches.append(batch)
         uow.commit()

@@ -27,13 +27,21 @@ order_lines = Table(
     Column("orderid", String(255)),
 )
 
+# Table representing products
+products = Table(
+    "products",
+    metadata,
+    Column("sku", String(255), primary_key=True),
+    Column("version_number", Integer, nullable=False, server_default="0"),
+)
+
 # Table for representing Batches
 batches = Table(
     "batches",
     metadata,
     Column("id", Integer, primary_key=True, autoincrement=True),
     Column("reference", String(255)),
-    Column("sku", String(255)),
+    Column("sku", ForeignKey("products.sku")),
     Column("_purchased_quantity", Integer, nullable=False),
     Column("eta", Date, nullable=True),
 )
@@ -55,7 +63,7 @@ def start_mappers():
     mapper_registry = registry()
     lines_mapper = mapper_registry.map_imperatively(model.OrderLine, order_lines)
     # Batches related to Order Line via Allocations Intermediate
-    mapper_registry.map_imperatively(
+    batches_mapper = mapper_registry.map_imperatively(
         model.Batch,
         batches,
         properties={
@@ -64,5 +72,13 @@ def start_mappers():
                 secondary=allocations, # intermediate table
                 collection_class=set, # allocations are idempotent and cannot be repeated
             )
+        },
+    )
+    mapper_registry.map_imperatively(
+        model.Product,
+        products,
+        properties={
+            "batches": relationship(batches_mapper),
         }
     )
+
